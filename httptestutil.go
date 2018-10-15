@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+  "regexp"
+	"encoding/json"
 )
 
 type ResponseAssertion func (*testing.T, *httptest.ResponseRecorder)
@@ -86,6 +88,22 @@ func RequestMethod(method string) TestOption {
 	}
 }
 
+// RequestHeader sets a specific header on the request
+func RequestHeader(header string, value string) TestOption {
+	return func (test *TestConfig) {
+		test.modifiers = append(test.modifiers, func (req *http.Request) {
+			req.Header.Set(header, value)
+		})
+	}
+}
+
+// RequestBody sets the body for a request
+func RequestBody(body string) TestOption {
+	return func (test *TestConfig) {
+		test.body = body
+	}
+}
+
 /*
 ---
 
@@ -125,6 +143,52 @@ func ResponseBody(expectedBody string) TestOption {
 	return responseAssertion(func (t *testing.T, recorder *httptest.ResponseRecorder) {
 		if responseBody := recorder.Body.String(); responseBody != expectedBody {
 			t.Errorf("Unexpected body: received\n\n%v\n\nexpected\n\n%v", responseBody, expectedBody)
+		}
+	})
+}
+
+// ResponseHeader asserts that the response received has the expected header
+func ResponseHeader(header string, expected string) TestOption {
+	return responseAssertion(func (t *testing.T, rr *httptest.ResponseRecorder) {
+		if actual := rr.Header().Get(header); actual != expected {
+			t.Errorf("Unexpected response header value for '%s': received '%s' expected '%s'", header, actual, expected)
+		}
+	})
+}
+
+// ResponseJsonField asserts that a specific JSON field has a specific value
+func ResponseJsonField(field string, expected string) TestOption {
+	return responseAssertion(func (t *testing.T, rr *httptest.ResponseRecorder) {
+		responseBody := rr.Body.Bytes()
+
+		var response map[string]interface{}
+		if err := json.Unmarshal(responseBody, &response); err != nil {
+			t.Errorf("Could not JSON parse response body: received\n\n%v", rr.Body)
+		}
+
+		if response[field] != expected {
+			t.Errorf("Unexpected JSON field value for '%s': received '%s' expected '%s'", field, response[field], expected)
+		}
+	})
+}
+
+// ResponseJsonFieldPattern asserts that a specific JSON field matches a regular expression string
+func ResponseJsonFieldPattern(field string, pattern string) TestOption {
+	return responseAssertion(func (t *testing.T, rr *httptest.ResponseRecorder) {
+		responseBody := rr.Body.Bytes()
+
+		var response map[string]interface{}
+		if err := json.Unmarshal(responseBody, &response); err != nil {
+			t.Errorf("Could not JSON parse response body: received\n\n%v", rr.Body)
+		}
+
+		if actual, ok := response[field].(string); ok {
+
+			if ok, _ := regexp.MatchString(pattern, actual); !ok {
+				t.Errorf("Unexpected JSON field value for '%s': received '%s' expected pattern %s", field, actual, pattern)
+			}
+		} else {
+			t.Errorf("Unexepected missing or non-string JSON field value for '%s'", field)
 		}
 	})
 }
