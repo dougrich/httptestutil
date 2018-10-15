@@ -106,7 +106,7 @@ func RequestBody(body string) TestOption {
 
 // RequestRel sets the relative url for the request (i.e. "/abc")
 func RequestRel(rel string) TestOption {
-	return fun (test *TestConfig) {
+	return func (test *TestConfig) {
 		test.route = rel
 	}
 }
