@@ -1,36 +1,36 @@
 package httptestutil
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
-  "regexp"
-	"encoding/json"
 )
 
-type ResponseAssertion func (*testing.T, *httptest.ResponseRecorder)
+type ResponseAssertion func(*testing.T, *httptest.ResponseRecorder)
 
-type RequestModifier func (req *http.Request)
+type RequestModifier func(req *http.Request)
 
 type TestConfig struct {
-	name string
-	method string
-	route string
-	body string
-	modifiers []RequestModifier
+	name       string
+	method     string
+	route      string
+	body       string
+	modifiers  []RequestModifier
 	assertions []ResponseAssertion
 }
 
-type TestOption func (*TestConfig)
+type TestOption func(*TestConfig)
 
 type TestSet []TestConfig
 
 // TestSet.Run runs the tests against a given handler inside the greater testing context. It runs each test as a sub test.
 func (tests TestSet) Run(t *testing.T, handler http.Handler) {
 	for _, test := range tests {
-		t.Run(test.name, func (t *testing.T) {
-			
+		t.Run(test.name, func(t *testing.T) {
+
 			req, err := http.NewRequest(test.method, test.route, strings.NewReader(test.body))
 
 			if err != nil {
@@ -66,7 +66,7 @@ func Test(name string, options ...TestOption) TestConfig {
 	for _, option := range options {
 		option(&test)
 	}
-	
+
 	return test
 }
 
@@ -80,33 +80,47 @@ These modify the request going out
 ---
 */
 
-
 // RequestMethod sets the method for the request
 func RequestMethod(method string) TestOption {
-	return func (test *TestConfig) {
+	return func(test *TestConfig) {
 		test.method = method
 	}
 }
 
 // RequestHeader sets a specific header on the request
 func RequestHeader(header string, value string) TestOption {
-	return func (test *TestConfig) {
-		test.modifiers = append(test.modifiers, func (req *http.Request) {
+	return func(test *TestConfig) {
+		test.modifiers = append(test.modifiers, func(req *http.Request) {
 			req.Header.Set(header, value)
 		})
 	}
 }
 
+// RequestJSON sets the body and the correct content type for a request
+func RequestJSON(d interface{}) TestOption {
+	s, err := json.Marshal(d)
+	if err != nil {
+		// this is an error in test setup; panic here so that developers can quickly correct
+		panic(err)
+	}
+	return func(test *TestConfig) {
+		test.modifiers = append(test.modifiers, func(req *http.Request) {
+			req.Header.Set("Content-Type", "application/json")
+		})
+		test.body = string(s)
+	}
+}
+
 // RequestBody sets the body for a request
 func RequestBody(body string) TestOption {
-	return func (test *TestConfig) {
+	return func(test *TestConfig) {
 		test.body = body
 	}
 }
 
 // RequestRel sets the relative url for the request (i.e. "/abc")
 func RequestRel(rel string) TestOption {
-	return func (test *TestConfig) {
+	return func(test *TestConfig) {
 		test.route = rel
 	}
 }
@@ -131,14 +145,14 @@ func <name>(<your arguments>) TestConfig {
 
 // responseAssertion is a helper function that reduces boilerplate for creating HTTPTestAssertions
 func responseAssertion(assertion ResponseAssertion) TestOption {
-	return func (test *TestConfig) {
+	return func(test *TestConfig) {
 		test.assertions = append(test.assertions, assertion)
 	}
 }
 
 // ResponseStatus asserts that the response received has the expected status
 func ResponseStatus(expectedStatus int) TestOption {
-	return responseAssertion(func (t *testing.T, recorder *httptest.ResponseRecorder) {
+	return responseAssertion(func(t *testing.T, recorder *httptest.ResponseRecorder) {
 		if expectedStatus != recorder.Code {
 			t.Errorf("Unexpected status code: recieved [%d], want [%d]", recorder.Code, expectedStatus)
 		}
@@ -147,7 +161,7 @@ func ResponseStatus(expectedStatus int) TestOption {
 
 // ResponseBody asserts that the response received has the expected body
 func ResponseBody(expectedBody string) TestOption {
-	return responseAssertion(func (t *testing.T, recorder *httptest.ResponseRecorder) {
+	return responseAssertion(func(t *testing.T, recorder *httptest.ResponseRecorder) {
 		if responseBody := recorder.Body.String(); responseBody != expectedBody {
 			t.Errorf("Unexpected body: received\n\n%v\n\nexpected\n\n%v", responseBody, expectedBody)
 		}
@@ -156,7 +170,7 @@ func ResponseBody(expectedBody string) TestOption {
 
 // ResponseHeader asserts that the response received has the expected header
 func ResponseHeader(header string, expected string) TestOption {
-	return responseAssertion(func (t *testing.T, rr *httptest.ResponseRecorder) {
+	return responseAssertion(func(t *testing.T, rr *httptest.ResponseRecorder) {
 		if actual := rr.Header().Get(header); actual != expected {
 			t.Errorf("Unexpected response header value for '%s': received '%s' expected '%s'", header, actual, expected)
 		}
@@ -165,7 +179,7 @@ func ResponseHeader(header string, expected string) TestOption {
 
 // ResponseJsonField asserts that a specific JSON field has a specific value
 func ResponseJsonField(field string, expected string) TestOption {
-	return responseAssertion(func (t *testing.T, rr *httptest.ResponseRecorder) {
+	return responseAssertion(func(t *testing.T, rr *httptest.ResponseRecorder) {
 		responseBody := rr.Body.Bytes()
 
 		var response map[string]interface{}
@@ -181,7 +195,7 @@ func ResponseJsonField(field string, expected string) TestOption {
 
 // ResponseJsonFieldPattern asserts that a specific JSON field matches a regular expression string
 func ResponseJsonFieldPattern(field string, pattern string) TestOption {
-	return responseAssertion(func (t *testing.T, rr *httptest.ResponseRecorder) {
+	return responseAssertion(func(t *testing.T, rr *httptest.ResponseRecorder) {
 		responseBody := rr.Body.Bytes()
 
 		var response map[string]interface{}
