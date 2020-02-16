@@ -191,6 +191,25 @@ func ResponseHeader(header string, expected string) TestOption {
 	})
 }
 
+// ResponseCookie asserts that the response received has a specific cookie
+func ResponseCookie(name string, value string) TestOption {
+	return responseAssertion(func(t *testing.T, rr *httptest.ResponseRecorder) {
+		cookies := rr.Result().Cookies()
+		found := false
+		for _, v := range cookies {
+			if v.Name == name {
+				found = true
+				if v.Value != value {
+					t.Errorf("Unexpected response cookie '%s': received '%s' expected '%s'", name, v.Value, value)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("Unexpected missing cookie '%s' from response", name)
+		}
+	})
+}
+
 // ResponseJsonField asserts that a specific JSON field has a specific value
 func ResponseJsonField(field string, expected string) TestOption {
 	return responseAssertion(func(t *testing.T, rr *httptest.ResponseRecorder) {
