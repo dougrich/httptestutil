@@ -73,6 +73,8 @@ func Test(name string, options ...TestOption) TestConfig {
 		"",
 		[]RequestModifier{},
 		[]ResponseAssertion{},
+		[]Check{},
+		[]Check{},
 	}
 
 	for _, option := range options {
