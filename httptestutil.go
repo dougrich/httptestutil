@@ -9,6 +9,8 @@ import (
 	"testing"
 )
 
+type Check func(*testing.T)
+
 type ResponseAssertion func(*testing.T, *httptest.ResponseRecorder)
 
 type RequestModifier func(req *http.Request)
@@ -20,6 +22,8 @@ type TestConfig struct {
 	body       string
 	modifiers  []RequestModifier
 	assertions []ResponseAssertion
+	precheck	 []Check
+	postcheck  []Check
 }
 
 type TestOption func(*TestConfig)
@@ -30,6 +34,10 @@ type TestSet []TestConfig
 func (tests TestSet) Run(t *testing.T, handler http.Handler) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+
+			for _, check := range test.precheck {
+				check(t)
+			}
 
 			req, err := http.NewRequest(test.method, test.route, strings.NewReader(test.body))
 
@@ -47,6 +55,10 @@ func (tests TestSet) Run(t *testing.T, handler http.Handler) {
 
 			for _, assert := range test.assertions {
 				assert(t, recorder)
+			}
+
+			for _, check := range test.postcheck {
+				check(t)
 			}
 		})
 	}
@@ -212,4 +224,26 @@ func ResponseJsonFieldPattern(field string, pattern string) TestOption {
 			t.Errorf("Unexepected missing or non-string JSON field value for '%s'", field)
 		}
 	})
+}
+
+/*
+---
+
+Utility
+
+These are utility functions that can be run before/after tests
+
+---
+*/
+
+func Before(check Check) TestOption {
+	return func (test *TestConfig) {
+		test.precheck = append(test.precheck, check)
+	}
+}
+
+func After(check Check) TestOption {
+	return func (test *TestConfig) {
+		test.precheck = append(test.postcheck, check)
+	}
 }
