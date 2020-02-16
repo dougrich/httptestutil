@@ -246,6 +246,6 @@ func Before(check Check) TestOption {
 
 func After(check Check) TestOption {
 	return func (test *TestConfig) {
-		test.precheck = append(test.postcheck, check)
+		test.postcheck = append(test.postcheck, check)
 	}
 }
