@@ -22,7 +22,7 @@ type TestConfig struct {
 	body       string
 	modifiers  []RequestModifier
 	assertions []ResponseAssertion
-	precheck	 []Check
+	precheck   []Check
 	postcheck  []Check
 }
 
@@ -211,7 +211,16 @@ func ResponseCookie(name string, value string) TestOption {
 }
 
 // ResponseJsonField asserts that a specific JSON field has a specific value
-func ResponseJsonField(field string, expected string) TestOption {
+func ResponseJsonField(field string, expected interface{}) TestOption {
+	return ResponseJsonFieldMatcher(field, func(t *testing.T, actual interface{}) {
+		if actual != expected {
+			t.Errorf("Unexpected JSON field value for '%s': received '%s' expected '%s'", field, actual, expected)
+		}
+	})
+}
+
+// ResponseJsonFieldMatcher is a looser version which provides a more primitive assertion
+func ResponseJsonFieldMatcher(field string, matcher func(t *testing.T, actual interface{})) TestOption {
 	return responseAssertion(func(t *testing.T, rr *httptest.ResponseRecorder) {
 		responseBody := rr.Body.Bytes()
 
@@ -220,9 +229,7 @@ func ResponseJsonField(field string, expected string) TestOption {
 			t.Errorf("Could not JSON parse response body: received\n\n%v", rr.Body)
 		}
 
-		if response[field] != expected {
-			t.Errorf("Unexpected JSON field value for '%s': received '%s' expected '%s'", field, response[field], expected)
-		}
+		matcher(t, response[field])
 	})
 }
 
@@ -258,13 +265,13 @@ These are utility functions that can be run before/after tests
 */
 
 func Before(check Check) TestOption {
-	return func (test *TestConfig) {
+	return func(test *TestConfig) {
 		test.precheck = append(test.precheck, check)
 	}
 }
 
 func After(check Check) TestOption {
-	return func (test *TestConfig) {
+	return func(test *TestConfig) {
 		test.postcheck = append(test.postcheck, check)
 	}
 }
